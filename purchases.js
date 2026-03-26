@@ -31,13 +31,14 @@ window.setPurchaseStatus = (status) => {
 // FORM LOCK
 // -------------------------------------------------------
 window.lockPurchaseForm = (lock) => {
-  document.getElementById("purchaseFormView")
-    .querySelectorAll("input, select")
-    .forEach(el => el.disabled = lock);
-  document.getElementById("purchaseFormView")
-    .querySelectorAll(".btn-delete-row")
-    .forEach(btn => btn.disabled = lock);
+  ["purchaseSupplier", "purchaseTin", "purchaseReference"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = lock;
+  });
+  purchaseBody.querySelectorAll("input, select").forEach(el => el.disabled = lock);
+  purchaseBody.querySelectorAll(".btn-delete-row").forEach(btn => btn.disabled = lock);
   document.getElementById("addPurchaseRowBtn").disabled = lock;
+  document.getElementById("addPurchaseRowBtn").classList.toggle("hidden", lock);
 };
 
 // -------------------------------------------------------
@@ -49,6 +50,19 @@ window.togglePurchaseButtons = (state) => {
   document.getElementById("postPurchaseBtn").classList.toggle("hidden", state !== "saved");
   document.getElementById("voidPurchaseBtn").classList.toggle("hidden", state !== "posted");
 };
+
+// -------------------------------------------------------
+// JOURNAL PREVIEW
+// -------------------------------------------------------
+function showPurchaseJournal(txn) {
+  if (!txn || txn.status === "DRAFT") {
+    document.getElementById("purchaseJournalPreview").classList.add("hidden");
+    return;
+  }
+  const entries = window.generateJournalEntries(txn, "purchases");
+  window.renderJournalEntries(entries, document.getElementById("purchaseJournalBody"));
+  document.getElementById("purchaseJournalPreview").classList.remove("hidden");
+}
 
 // -------------------------------------------------------
 // ADD ROW
@@ -69,7 +83,7 @@ window.addPurchaseRow = function (data = {}) {
         <option value="None">None</option>
       </select>
     </td>
-    <td><button type="button" class="btn-delete-row" title="Remove row">×</button></td>`;
+    <td><button type="button" class="btn-delete-row" title="Remove">×</button></td>`;
 
   tr.querySelector(".acc").appendChild(acc);
   tr.querySelector(".p-tax").value = data.tax || "VAT";
@@ -77,14 +91,10 @@ window.addPurchaseRow = function (data = {}) {
   tr.querySelector(".btn-delete-row").onclick = () => {
     tr.remove();
     updatePurchaseTotals();
-    window.updateAuditLog("purchases");
   };
 
   tr.querySelectorAll("input, select").forEach(el =>
-    el.addEventListener("input", () => {
-      updatePurchaseTotals();
-      window.updateAuditLog("purchases");
-    })
+    el.addEventListener("input", () => updatePurchaseTotals())
   );
 
   purchaseBody.appendChild(tr);
@@ -100,7 +110,7 @@ window.updatePurchaseTotals = function () {
   purchaseBody.querySelectorAll("tr").forEach(r => {
     const net = parseFloat(r.querySelector(".p-net").value) || 0;
     const tax = r.querySelector(".p-tax").value;
-    const vat = tax === "VAT" ? net * 0.12 : 0;
+    const vat = tax === "VAT" ? +(net * 0.12).toFixed(2) : 0;
     r.querySelector(".p-vat").textContent = vat.toFixed(2);
     if (tax === "VAT") { netTotal += net; vatTotal += vat; }
     else               { exemptTotal += net; }
@@ -119,11 +129,13 @@ window.updatePurchaseTotals = function () {
 // -------------------------------------------------------
 window.resetPurchaseForm = function (withInitialRow = true) {
   purchaseBody.innerHTML = "";
-  document.getElementById("purchaseSupplier").value  = "";
-  document.getElementById("purchaseReference").value = "";
-  window.clearInlineError(document.getElementById("purchaseSupplier"));
-  window.clearInlineError(document.getElementById("purchaseReference"));
-
+  ["purchaseSupplier", "purchaseTin", "purchaseReference"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+  ["purchaseSupplier", "purchaseReference"].forEach(id =>
+    window.clearInlineError(document.getElementById(id))
+  );
   [
     { id: "savePurchaseBtn", label: "Save" },
     { id: "postPurchaseBtn", label: "Post" },
@@ -132,8 +144,9 @@ window.resetPurchaseForm = function (withInitialRow = true) {
     const btn = document.getElementById(id);
     if (btn) { btn.dataset.confirmed = ""; btn.textContent = label; }
   });
-
+  document.getElementById("purchaseJournalPreview").classList.add("hidden");
   if (withInitialRow) window.addPurchaseRow();
+  updatePurchaseTotals();
 };
 
 // -------------------------------------------------------
@@ -152,27 +165,32 @@ document.getElementById("savePurchaseBtn").onclick = function () {
     window.showInlineError(suppInput, "Supplier name is required");
     return;
   }
-
   if (reference && window.isDuplicateReference(window.savedPurchases, reference, window.currentPurchaseIndex)) {
     window.showInlineError(refInput, "Reference already exists");
     return;
   }
-
   if (!this.dataset.confirmed) {
     window.showInlineError(suppInput, "Tap Save again to confirm", true);
     this.dataset.confirmed = "true";
     this.textContent = "Confirm Save";
     return;
   }
-
   this.dataset.confirmed = "";
   this.textContent = "Save";
 
+  const existing = window.currentPurchaseIndex !== null
+    ? window.savedPurchases[window.currentPurchaseIndex]
+    : null;
+
   const purchase = {
     supplier,
+    tin:       document.getElementById("purchaseTin").value.trim(),
     reference,
-    status: "DRAFT",
+    status:    "DRAFT",
     lastEditedStatus: "Draft",
+    createdAt: existing?.createdAt || window.nowTimestamp(),
+    postedAt:  existing?.postedAt  || null,
+    voidedAt:  existing?.voidedAt  || null,
     rows: [...purchaseBody.children].map(r => ({
       date:    r.querySelector(".p-date").value,
       desc:    r.querySelector(".p-desc").value,
@@ -183,9 +201,8 @@ document.getElementById("savePurchaseBtn").onclick = function () {
   };
 
   window.DB.savePurchase(purchase, window.currentPurchaseIndex).then(() => {
-    if (window.currentPurchaseIndex === null) {
+    if (window.currentPurchaseIndex === null)
       window.currentPurchaseIndex = window.savedPurchases.length - 1;
-    }
     renderPurchaseList();
     window.updateOverview();
     showPurchaseList();
@@ -205,17 +222,20 @@ document.getElementById("postPurchaseBtn").onclick = function () {
     this.textContent = "Confirm Post";
     return;
   }
-
   this.dataset.confirmed = "";
   this.textContent = "Post";
 
-  window.savedPurchases[window.currentPurchaseIndex].status          = "POSTED";
-  window.savedPurchases[window.currentPurchaseIndex].lastEditedStatus = "Posted";
+  const rec = window.savedPurchases[window.currentPurchaseIndex];
+  rec.status           = "POSTED";
+  rec.lastEditedStatus = "Posted";
+  rec.postedAt         = rec.postedAt || window.nowTimestamp();
+
   window.DB.updatePurchase(window.currentPurchaseIndex);
-  window.updateAuditLog("purchases");
+  window.loadAuditLog("purchases");
   setPurchaseStatus("POSTED");
   lockPurchaseForm(true);
   togglePurchaseButtons("posted");
+  showPurchaseJournal(rec);
   window.updateOverview();
 };
 
@@ -232,17 +252,20 @@ document.getElementById("voidPurchaseBtn").onclick = function () {
     this.textContent = "Confirm Void";
     return;
   }
-
   this.dataset.confirmed = "";
   this.textContent = "Void";
 
-  window.savedPurchases[window.currentPurchaseIndex].status          = "VOID";
-  window.savedPurchases[window.currentPurchaseIndex].lastEditedStatus = "Voided";
+  const rec = window.savedPurchases[window.currentPurchaseIndex];
+  rec.status           = "VOID";
+  rec.lastEditedStatus = "Voided";
+  rec.voidedAt         = rec.voidedAt || window.nowTimestamp();
+
   window.DB.updatePurchase(window.currentPurchaseIndex);
-  window.updateAuditLog("purchases");
+  window.loadAuditLog("purchases");
   setPurchaseStatus("VOID");
   lockPurchaseForm(true);
   togglePurchaseButtons("void");
+  document.getElementById("purchaseJournalPreview").classList.add("hidden");
   window.updateOverview();
 };
 
@@ -262,45 +285,52 @@ window.renderPurchaseList = function () {
     if (to   && date > to)   return false;
     if (search &&
         !p.supplier.toLowerCase().includes(search) &&
-        !(p.reference || "").toLowerCase().includes(search)) return false;
+        !(p.reference || "").toLowerCase().includes(search) &&
+        !(p.tin || "").toLowerCase().includes(search)) return false;
     return true;
   });
 
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr class="no-hover"><td colspan="4" class="empty-state">No purchases found.</td></tr>`;
+    tbody.innerHTML = `<tr class="no-hover"><td colspan="6" class="empty-state">No purchases found.</td></tr>`;
     return;
   }
 
   [...filtered].reverse().forEach(p => {
     const i     = window.savedPurchases.indexOf(p);
     const date  = p.rows[0]?.date || "";
-    const gross = p.rows.reduce((sum, r) => sum + r.net + (r.tax === "VAT" ? r.net * 0.12 : 0), 0);
-
-    const tr = document.createElement("tr");
+    const gross = window.calcGross(p.rows);
+    const tr    = document.createElement("tr");
     tr.innerHTML = `
       <td>${window.formatDate(date)}</td>
-      <td>${window.statusBadge(p.status)}${p.supplier}</td>
+      <td>${p.supplier}</td>
+      <td>${p.tin || "—"}</td>
       <td>${p.reference || "—"}</td>
-      <td class="amount-cell">${gross.toFixed(2)}</td>`;
+      <td class="amount-cell">${gross.toFixed(2)}</td>
+      <td>${window.statusBadge(p.status)}</td>`;
     tr.onclick = () => openPurchase(i);
     tbody.appendChild(tr);
   });
 };
 
 // -------------------------------------------------------
-// OPEN EXISTING RECORD
+// OPEN RECORD
 // -------------------------------------------------------
 window.openPurchase = function (i) {
   const p = window.savedPurchases[i];
   window.currentPurchaseIndex = i;
   resetPurchaseForm(false);
+
   document.getElementById("purchaseSupplier").value  = p.supplier;
+  document.getElementById("purchaseTin").value       = p.tin || "";
   document.getElementById("purchaseReference").value = p.reference || "";
   p.rows.forEach(r => window.addPurchaseRow(r));
+
   setPurchaseStatus(p.status);
-  lockPurchaseForm(true);
+  const isLocked = p.status !== "DRAFT";
+  lockPurchaseForm(isLocked);
   togglePurchaseButtons(p.status === "DRAFT" ? "saved" : p.status.toLowerCase());
-  window.updateAuditLog("purchases");
+  window.loadAuditLog("purchases");
+  showPurchaseJournal(p);
   showPurchaseForm();
 };
 
@@ -313,21 +343,13 @@ document.getElementById("addNewPurchaseBtn").onclick = () => {
   setPurchaseStatus("DRAFT");
   lockPurchaseForm(false);
   togglePurchaseButtons("new");
+  window.loadAuditLog("purchases");
   showPurchaseForm();
 };
 
-document.getElementById("addPurchaseRowBtn").onclick = () => window.addPurchaseRow();
-
-document.getElementById("editPurchaseBtn").onclick = () => {
-  lockPurchaseForm(false);
-  togglePurchaseButtons("saved");
-};
-
-document.getElementById("cancelPurchaseBtn").onclick = () => {
-  resetPurchaseForm(false);
-  showPurchaseList();
-};
-
+document.getElementById("addPurchaseRowBtn").onclick  = () => window.addPurchaseRow();
+document.getElementById("editPurchaseBtn").onclick    = () => { lockPurchaseForm(false); togglePurchaseButtons("saved"); };
+document.getElementById("cancelPurchaseBtn").onclick  = () => { resetPurchaseForm(false); showPurchaseList(); };
 document.getElementById("filterPurchasesBtn").onclick = renderPurchaseList;
 document.getElementById("purchaseSearch").oninput     = renderPurchaseList;
 

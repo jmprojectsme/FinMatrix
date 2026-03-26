@@ -12,15 +12,16 @@
   <div class="title"><h1>FinMatrix</h1></div>
   <nav>
     <ul>
-      <li><a href="#home" class="nav-link">Home</a></li>
-      <li><a href="#revenue" class="nav-link">Sales</a></li>
-      <li><a href="#bills" class="nav-link">Purchases</a></li>
+      <li><a href="#home"           class="nav-link">Home</a></li>
+      <li><a href="#revenue"        class="nav-link">Sales</a></li>
+      <li><a href="#bills"          class="nav-link">Purchases</a></li>
+      <li><a href="#journal"        class="nav-link">Journal</a></li>
       <li><a href="#summary-report" class="nav-link">Reports</a></li>
       <li class="settings-menu">
         <button type="button" id="settingsBtn">Settings</button>
         <ul id="settingsDropdown" class="hidden">
           <li><a href="#account-profile" class="nav-link">Account Profile</a></li>
-          <li><a href="#coa" class="nav-link">COA</a></li>
+          <li><a href="#coa"             class="nav-link">COA</a></li>
         </ul>
       </li>
     </ul>
@@ -29,19 +30,31 @@
 
 <main>
 
-  <!-- HOME -->
+  <!-- ================================================ -->
+  <!-- HOME                                             -->
+  <!-- ================================================ -->
   <section id="home" class="page">
-    <h2 class="page-title">Overview</h2>
+    <h2 class="page-title">Overview <span class="posted-note">— Posted transactions only</span></h2>
+
     <div class="overview-cards">
-      <div class="card">
-        <span>Sales Total</span>
+      <div class="card card-sales">
+        <span>Total Sales</span>
         <strong id="homeSalesTotal">0.00</strong>
       </div>
-      <div class="card">
-        <span>Purchases Total</span>
+      <div class="card card-purchases">
+        <span>Total Purchases</span>
         <strong id="homePurchasesTotal">0.00</strong>
       </div>
+      <div class="card card-net">
+        <span>Net Income</span>
+        <strong id="homeNetIncome">0.00</strong>
+      </div>
     </div>
+
+    <div class="chart-wrapper">
+      <canvas id="overviewChart"></canvas>
+    </div>
+
     <div class="overview-recent">
       <div class="recent-block">
         <h3 class="recent-title">Recent Sales</h3>
@@ -54,7 +67,9 @@
     </div>
   </section>
 
-  <!-- SALES -->
+  <!-- ================================================ -->
+  <!-- SALES                                            -->
+  <!-- ================================================ -->
   <section id="revenue" class="page hidden">
     <h2 class="page-title">Sales</h2>
 
@@ -63,7 +78,7 @@
         <button type="button" id="addNewSaleBtn" class="btn-primary">+ Add New</button>
         <div class="list-filters">
           <label>From <input type="date" id="salesFromDate"></label>
-          <label>To <input type="date" id="salesToDate"></label>
+          <label>To   <input type="date" id="salesToDate"></label>
           <button type="button" id="filterSalesBtn" class="btn-filter">Filter</button>
         </div>
         <div class="list-search">
@@ -75,10 +90,8 @@
         <table class="txn-table">
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Customer</th>
-              <th>Reference</th>
-              <th class="num">Gross Amount</th>
+              <th>Date</th><th>Customer</th><th>TIN</th>
+              <th>Reference</th><th class="num">Gross</th><th>Status</th>
             </tr>
           </thead>
           <tbody id="salesListTableBody"></tbody>
@@ -87,63 +100,83 @@
     </div>
 
     <div id="salesFormView" class="hidden">
-      <span id="salesStatus" class="txn-status draft">DRAFT</span>
+      <div class="form-topbar">
+        <span id="salesStatus" class="txn-status draft">DRAFT</span>
+        <div class="total-box">
+          <span>Grand Total</span>
+          <strong id="salesTotal">0.00</strong>
+        </div>
+      </div>
+
       <div class="form-header">
         <div>
           <label>Customer Name</label>
           <input type="text" id="salesCustomer" autocomplete="off">
         </div>
         <div>
+          <label>TIN Number</label>
+          <input type="text" id="salesTin" autocomplete="off" placeholder="000-000-000">
+        </div>
+        <div>
           <label>Reference No.</label>
           <input type="text" id="salesReference" autocomplete="off">
         </div>
-        <div class="total-box">
-          <span>Total</span>
-          <strong id="salesTotal">0.00</strong>
-        </div>
       </div>
+
       <div class="table-wrapper">
         <table class="txn-table">
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Description</th>
-              <th>Account</th>
-              <th class="num">Net</th>
-              <th class="num">Output VAT</th>
-              <th>Tax Type</th>
-              <th style="width:40px;"></th>
+              <th>Date</th><th>Description</th><th>Account (Credit)</th>
+              <th class="num">Net</th><th class="num">Output VAT</th>
+              <th>Tax Type</th><th style="width:38px;"></th>
             </tr>
           </thead>
           <tbody id="salesTableBody"></tbody>
         </table>
       </div>
+
       <div class="row-actions">
         <button type="button" id="addSalesRowBtn">+ Add Row</button>
       </div>
+
       <div class="form-footer">
         <div class="audit-log">
-          <p id="salesLastEdited">Last edited: —</p>
+          <p id="salesLastEdited">Created: —</p>
+          <p id="salesPostedAt"  class="hidden">Posted: —</p>
+          <p id="salesVoidedAt"  class="hidden">Voided: —</p>
           <p>Status: <span id="salesRecordStatus">New Draft</span></p>
         </div>
         <div class="summary-breakdown">
-          <div class="summary-row"><span>Total Net:</span><span id="salesSummaryNet">0.00</span></div>
-          <div class="summary-row"><span>Total VAT:</span><span id="salesSummaryVat">0.00</span></div>
-          <div class="summary-row"><span>VAT Exempt / None:</span><span id="salesSummaryExempt">0.00</span></div>
+          <div class="summary-row"><span>Total Net:</span>           <span id="salesSummaryNet">0.00</span></div>
+          <div class="summary-row"><span>Total VAT (12%):</span>     <span id="salesSummaryVat">0.00</span></div>
+          <div class="summary-row"><span>VAT Exempt / None:</span>   <span id="salesSummaryExempt">0.00</span></div>
           <div class="summary-row grand-total"><span>Grand Total:</span><strong id="salesSummaryGrand">0.00</strong></div>
         </div>
       </div>
+
+      <!-- Journal entries preview (shown when posted) -->
+      <div id="salesJournalPreview" class="journal-preview hidden">
+        <h4 class="journal-preview-title">Journal Entries</h4>
+        <table class="journal-table">
+          <thead><tr><th>Account</th><th>Debit</th><th>Credit</th></tr></thead>
+          <tbody id="salesJournalBody"></tbody>
+        </table>
+      </div>
+
       <div class="button-row">
         <button type="button" id="saveSaleBtn">Save</button>
-        <button type="button" id="editSaleBtn"  class="hidden">Edit</button>
-        <button type="button" id="postSaleBtn"  class="hidden">Post</button>
-        <button type="button" id="voidSaleBtn"  class="hidden">Void</button>
+        <button type="button" id="editSaleBtn"   class="hidden">Edit</button>
+        <button type="button" id="postSaleBtn"   class="hidden">Post</button>
+        <button type="button" id="voidSaleBtn"   class="hidden">Void</button>
         <button type="button" id="cancelSaleBtn">Cancel</button>
       </div>
     </div>
   </section>
 
-  <!-- PURCHASES -->
+  <!-- ================================================ -->
+  <!-- PURCHASES                                        -->
+  <!-- ================================================ -->
   <section id="bills" class="page hidden">
     <h2 class="page-title">Purchases</h2>
 
@@ -152,7 +185,7 @@
         <button type="button" id="addNewPurchaseBtn" class="btn-primary">+ Add New</button>
         <div class="list-filters">
           <label>From <input type="date" id="purchaseFromDate"></label>
-          <label>To <input type="date" id="purchaseToDate"></label>
+          <label>To   <input type="date" id="purchaseToDate"></label>
           <button type="button" id="filterPurchasesBtn" class="btn-filter">Filter</button>
         </div>
         <div class="list-search">
@@ -164,10 +197,8 @@
         <table class="txn-table">
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Supplier</th>
-              <th>Reference</th>
-              <th class="num">Gross Amount</th>
+              <th>Date</th><th>Supplier</th><th>TIN</th>
+              <th>Reference</th><th class="num">Gross</th><th>Status</th>
             </tr>
           </thead>
           <tbody id="purchaseListTableBody"></tbody>
@@ -176,83 +207,111 @@
     </div>
 
     <div id="purchaseFormView" class="hidden">
-      <span id="purchaseStatus" class="txn-status draft">DRAFT</span>
+      <div class="form-topbar">
+        <span id="purchaseStatus" class="txn-status draft">DRAFT</span>
+        <div class="total-box">
+          <span>Grand Total</span>
+          <strong id="purchaseTotal">0.00</strong>
+        </div>
+      </div>
+
       <div class="form-header">
         <div>
           <label>Supplier Name</label>
           <input type="text" id="purchaseSupplier" autocomplete="off">
         </div>
         <div>
+          <label>TIN Number</label>
+          <input type="text" id="purchaseTin" autocomplete="off" placeholder="000-000-000">
+        </div>
+        <div>
           <label>Reference No.</label>
           <input type="text" id="purchaseReference" autocomplete="off">
         </div>
-        <div class="total-box">
-          <span>Total</span>
-          <strong id="purchaseTotal">0.00</strong>
-        </div>
       </div>
+
       <div class="table-wrapper">
         <table class="txn-table">
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Description</th>
-              <th>Account</th>
-              <th class="num">Net</th>
-              <th class="num">Input VAT</th>
-              <th>Tax Type</th>
-              <th style="width:40px;"></th>
+              <th>Date</th><th>Description</th><th>Account (Debit)</th>
+              <th class="num">Net</th><th class="num">Input VAT</th>
+              <th>Tax Type</th><th style="width:38px;"></th>
             </tr>
           </thead>
           <tbody id="purchaseTableBody"></tbody>
         </table>
       </div>
+
       <div class="row-actions">
         <button type="button" id="addPurchaseRowBtn">+ Add Row</button>
       </div>
+
       <div class="form-footer">
         <div class="audit-log">
-          <p id="purchaseLastEdited">Last edited: —</p>
+          <p id="purchaseLastEdited">Created: —</p>
+          <p id="purchasePostedAt"  class="hidden">Posted: —</p>
+          <p id="purchaseVoidedAt"  class="hidden">Voided: —</p>
           <p>Status: <span id="purchaseRecordStatus">New Draft</span></p>
         </div>
         <div class="summary-breakdown">
-          <div class="summary-row"><span>Total Net:</span><span id="purchaseSummaryNet">0.00</span></div>
-          <div class="summary-row"><span>Total VAT:</span><span id="purchaseSummaryVat">0.00</span></div>
-          <div class="summary-row"><span>VAT Exempt / None:</span><span id="purchaseSummaryExempt">0.00</span></div>
+          <div class="summary-row"><span>Total Net:</span>           <span id="purchaseSummaryNet">0.00</span></div>
+          <div class="summary-row"><span>Total VAT (12%):</span>     <span id="purchaseSummaryVat">0.00</span></div>
+          <div class="summary-row"><span>VAT Exempt / None:</span>   <span id="purchaseSummaryExempt">0.00</span></div>
           <div class="summary-row grand-total"><span>Grand Total:</span><strong id="purchaseSummaryGrand">0.00</strong></div>
         </div>
       </div>
+
+      <div id="purchaseJournalPreview" class="journal-preview hidden">
+        <h4 class="journal-preview-title">Journal Entries</h4>
+        <table class="journal-table">
+          <thead><tr><th>Account</th><th>Debit</th><th>Credit</th></tr></thead>
+          <tbody id="purchaseJournalBody"></tbody>
+        </table>
+      </div>
+
       <div class="button-row">
         <button type="button" id="savePurchaseBtn">Save</button>
-        <button type="button" id="editPurchaseBtn"  class="hidden">Edit</button>
-        <button type="button" id="postPurchaseBtn"  class="hidden">Post</button>
-        <button type="button" id="voidPurchaseBtn"  class="hidden">Void</button>
+        <button type="button" id="editPurchaseBtn"   class="hidden">Edit</button>
+        <button type="button" id="postPurchaseBtn"   class="hidden">Post</button>
+        <button type="button" id="voidPurchaseBtn"   class="hidden">Void</button>
         <button type="button" id="cancelPurchaseBtn">Cancel</button>
       </div>
     </div>
   </section>
 
-  <!-- REPORTS -->
-  <section id="summary-report" class="page hidden">
-    <h2 class="page-title">Reports</h2>
+  <!-- ================================================ -->
+  <!-- JOURNAL                                          -->
+  <!-- ================================================ -->
+  <section id="journal" class="page hidden">
+    <h2 class="page-title">General Journal <span class="posted-note">— Posted transactions only</span></h2>
     <div class="report-filters">
-      <div>
-        <label>From Date</label>
-        <input type="date" id="reportFromDate">
-      </div>
-      <div>
-        <label>To Date</label>
-        <input type="date" id="reportToDate">
-      </div>
+      <div><label>From Date</label><input type="date" id="journalFromDate"></div>
+      <div><label>To Date</label>  <input type="date" id="journalToDate"></div>
+      <button type="button" class="btn-primary" id="runJournalBtn">Run</button>
+    </div>
+    <div id="journalOutput"></div>
+  </section>
+
+  <!-- ================================================ -->
+  <!-- REPORTS                                          -->
+  <!-- ================================================ -->
+  <section id="summary-report" class="page hidden">
+    <h2 class="page-title">Reports <span class="posted-note">— Posted transactions only</span></h2>
+    <div class="report-filters">
+      <div><label>From Date</label><input type="date" id="reportFromDate"></div>
+      <div><label>To Date</label>  <input type="date" id="reportToDate"></div>
       <div>
         <label>Report Type</label>
         <select id="reportType">
           <option value="both">Sales &amp; Purchases</option>
           <option value="sales">Sales Only</option>
           <option value="purchases">Purchases Only</option>
+          <option value="trial">Trial Balance</option>
         </select>
       </div>
       <button type="button" class="btn-primary" id="runReportBtn">Run Report</button>
+      <button type="button" class="btn-export"  id="exportCsvBtn">⬇ Export CSV</button>
     </div>
     <div id="reportOutput"></div>
   </section>
@@ -263,36 +322,66 @@
     <div class="placeholder-card">Coming soon.</div>
   </section>
 
-  <!-- COA -->
+  <!-- ================================================ -->
+  <!-- COA                                              -->
+  <!-- ================================================ -->
   <section id="coa" class="page hidden">
     <h2 class="page-title">Chart of Accounts</h2>
+    <p class="coa-hint">Standard double-entry COA. Add sub-accounts, rename groups, or delete unused accounts.</p>
     <div class="coa-tabs">
-      <button class="coa-tab active" data-coa-tab="sales">Sales Accounts</button>
-      <button class="coa-tab" data-coa-tab="purchases">Purchase Accounts</button>
+      <button class="coa-tab active" data-coa-tab="sales">Revenue / Income</button>
+      <button class="coa-tab" data-coa-tab="purchases">Expenses</button>
+      <button class="coa-tab" data-coa-tab="assets">Assets</button>
+      <button class="coa-tab" data-coa-tab="liabilities">Liabilities</button>
+      <button class="coa-tab" data-coa-tab="equity">Equity</button>
     </div>
+
     <div class="coa-panel active" id="coa-panel-sales">
       <div id="coaSalesGroups"></div>
       <div class="coa-new-group">
-        <input type="text" id="newSalesGroupName" placeholder="New group name (e.g. Other Income)">
+        <input type="text" id="newSalesGroupName" placeholder="New group name">
         <button type="button" class="btn-primary" id="addSalesGroupBtn">+ Add Group</button>
       </div>
     </div>
     <div class="coa-panel" id="coa-panel-purchases">
       <div id="coaPurchasesGroups"></div>
       <div class="coa-new-group">
-        <input type="text" id="newPurchasesGroupName" placeholder="New group name (e.g. Overhead)">
+        <input type="text" id="newPurchasesGroupName" placeholder="New group name">
         <button type="button" class="btn-primary" id="addPurchasesGroupBtn">+ Add Group</button>
+      </div>
+    </div>
+    <div class="coa-panel" id="coa-panel-assets">
+      <div id="coaAssetsGroups"></div>
+      <div class="coa-new-group">
+        <input type="text" id="newAssetsGroupName" placeholder="New group name">
+        <button type="button" class="btn-primary" id="addAssetsGroupBtn">+ Add Group</button>
+      </div>
+    </div>
+    <div class="coa-panel" id="coa-panel-liabilities">
+      <div id="coaLiabilitiesGroups"></div>
+      <div class="coa-new-group">
+        <input type="text" id="newLiabilitiesGroupName" placeholder="New group name">
+        <button type="button" class="btn-primary" id="addLiabilitiesGroupBtn">+ Add Group</button>
+      </div>
+    </div>
+    <div class="coa-panel" id="coa-panel-equity">
+      <div id="coaEquityGroups"></div>
+      <div class="coa-new-group">
+        <input type="text" id="newEquityGroupName" placeholder="New group name">
+        <button type="button" class="btn-primary" id="addEquityGroupBtn">+ Add Group</button>
       </div>
     </div>
   </section>
 
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 <script src="config.js"    defer></script>
 <script src="db.js"        defer></script>
 <script src="utils.js"     defer></script>
 <script src="sales.js"     defer></script>
 <script src="purchases.js" defer></script>
+<script src="journal.js"   defer></script>
 <script src="reports.js"   defer></script>
 <script src="coa.js"       defer></script>
 <script src="main.js"      defer></script>
