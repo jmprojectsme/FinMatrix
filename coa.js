@@ -1,9 +1,9 @@
 // =====================================================
-// COA MANAGER MODULE
+// coa.js — Chart of Accounts Manager
 // =====================================================
 
-// Render both panels
-window.renderCOA = function() {
+// Render both panels (called on page load and after changes)
+window.renderCOA = function () {
   renderCOAPanel("sales",     "coaSalesGroups");
   renderCOAPanel("purchases", "coaPurchasesGroups");
 };
@@ -15,52 +15,40 @@ function renderCOAPanel(type, containerId) {
   const groups = window.COA[type];
 
   Object.keys(groups).forEach(group => {
-    const div = document.createElement("div");
-    div.className = "coa-group";
-
+    const div      = document.createElement("div");
+    div.className  = "coa-group";
     const accounts = groups[group];
 
     const accountsHTML = accounts.length
       ? accounts.map((acc, ai) => `
           <div class="coa-account-row">
             <span>${acc}</span>
-            <button
-              class="btn-delete-acc"
-              data-type="${type}"
-              data-group="${group}"
-              data-index="${ai}"
-              title="Remove account">× Remove</button>
+            <button class="btn-delete-acc"
+              data-type="${type}" data-group="${group}" data-index="${ai}"
+              title="Remove account">Remove</button>
           </div>`).join("")
       : `<div class="coa-empty">No accounts yet. Add one below.</div>`;
 
     div.innerHTML = `
       <div class="coa-group-header">
         <span class="coa-group-name">${group}</span>
-        <button
-          class="btn-delete-acc"
-          data-type="${type}"
-          data-group="${group}"
-          data-delete-group="true"
+        <button class="btn-delete-acc"
+          data-type="${type}" data-group="${group}" data-delete-group="true"
           title="Delete group">Delete Group</button>
       </div>
       ${accountsHTML}
       <div class="coa-add-row">
-        <input
-          type="text"
-          placeholder="New account name"
-          class="new-acc-input"
-          data-type="${type}"
-          data-group="${group}">
-        <button
-          class="btn-add-acc"
-          data-type="${type}"
-          data-group="${group}">Add</button>
+        <input type="text" class="new-acc-input"
+          data-type="${type}" data-group="${group}"
+          placeholder="New account name">
+        <button class="btn-add-acc"
+          data-type="${type}" data-group="${group}">Add</button>
       </div>`;
 
     container.appendChild(div);
   });
 
-  // Event: delete account or group
+  // Delete account or group
   container.querySelectorAll(".btn-delete-acc").forEach(btn => {
     btn.onclick = () => {
       const t = btn.dataset.type;
@@ -70,43 +58,41 @@ function renderCOAPanel(type, containerId) {
         if (!confirm(`Delete group "${g}" and all its accounts?`)) return;
         delete window.COA[t][g];
       } else {
-        const idx = +btn.dataset.index;
-        window.COA[t][g].splice(idx, 1);
+        window.COA[t][g].splice(+btn.dataset.index, 1);
       }
 
+      window.DB.saveCOA();
       window.renderCOA();
     };
   });
 
-  // Event: add account
+  // Add account
   container.querySelectorAll(".btn-add-acc").forEach(btn => {
-    btn.onclick = () => {
-      const t     = btn.dataset.type;
-      const g     = btn.dataset.group;
-      const input = container.querySelector(`.new-acc-input[data-group="${g}"][data-type="${t}"]`);
-      const val   = input.value.trim();
-
-      if (!val) return;
-      if (window.COA[t][g].includes(val)) { alert("Account already exists in this group."); return; }
-
-      window.COA[t][g].push(val);
-      input.value = "";
-      window.renderCOA();
-    };
+    btn.onclick = () => addAccount(container, btn.dataset.type, btn.dataset.group);
   });
 
-  // Allow Enter key to add account
+  // Enter key on add-account inputs
   container.querySelectorAll(".new-acc-input").forEach(input => {
     input.addEventListener("keydown", e => {
-      if (e.key === "Enter") {
-        const btn = container.querySelector(`.btn-add-acc[data-group="${input.dataset.group}"][data-type="${input.dataset.type}"]`);
-        if (btn) btn.click();
-      }
+      if (e.key === "Enter") addAccount(container, input.dataset.type, input.dataset.group);
     });
   });
 }
 
-// --- ADD GROUP BUTTONS ---
+function addAccount(container, type, group) {
+  const input = container.querySelector(`.new-acc-input[data-type="${type}"][data-group="${group}"]`);
+  const val   = input.value.trim();
+  if (!val) return;
+  if (window.COA[type][group].includes(val)) { alert("Account already exists in this group."); return; }
+  window.COA[type][group].push(val);
+  input.value = "";
+  window.DB.saveCOA();
+  window.renderCOA();
+}
+
+// -------------------------------------------------------
+// ADD GROUP BUTTONS
+// -------------------------------------------------------
 document.getElementById("addSalesGroupBtn").onclick = () => {
   const input = document.getElementById("newSalesGroupName");
   const name  = input.value.trim();
@@ -114,6 +100,7 @@ document.getElementById("addSalesGroupBtn").onclick = () => {
   if (window.COA.sales[name]) { alert("Group already exists."); return; }
   window.COA.sales[name] = [];
   input.value = "";
+  window.DB.saveCOA();
   window.renderCOA();
 };
 
@@ -124,10 +111,11 @@ document.getElementById("addPurchasesGroupBtn").onclick = () => {
   if (window.COA.purchases[name]) { alert("Group already exists."); return; }
   window.COA.purchases[name] = [];
   input.value = "";
+  window.DB.saveCOA();
   window.renderCOA();
 };
 
-// Allow Enter key on new group inputs
+// Enter key on new-group inputs
 document.getElementById("newSalesGroupName").addEventListener("keydown", e => {
   if (e.key === "Enter") document.getElementById("addSalesGroupBtn").click();
 });
@@ -135,7 +123,9 @@ document.getElementById("newPurchasesGroupName").addEventListener("keydown", e =
   if (e.key === "Enter") document.getElementById("addPurchasesGroupBtn").click();
 });
 
-// --- TAB SWITCHING ---
+// -------------------------------------------------------
+// TAB SWITCHING
+// -------------------------------------------------------
 document.querySelectorAll(".coa-tab").forEach(tab => {
   tab.onclick = () => {
     document.querySelectorAll(".coa-tab").forEach(t   => t.classList.remove("active"));

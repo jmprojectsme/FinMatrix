@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>FinMatrix Accounting Tool</title>
+  <title>FinMatrix</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -33,15 +33,31 @@
   <section id="home" class="page">
     <h2 class="page-title">Overview</h2>
     <div class="overview-cards">
-      <div class="card"><span>Sales Total</span><strong id="homeSalesTotal">0.00</strong></div>
-      <div class="card"><span>Purchases Total</span><strong id="homePurchasesTotal">0.00</strong></div>
+      <div class="card">
+        <span>Sales Total</span>
+        <strong id="homeSalesTotal">0.00</strong>
+      </div>
+      <div class="card">
+        <span>Purchases Total</span>
+        <strong id="homePurchasesTotal">0.00</strong>
+      </div>
     </div>
-    <canvas id="summaryChart" width="320" height="180"></canvas>
+    <div class="overview-recent">
+      <div class="recent-block">
+        <h3 class="recent-title">Recent Sales</h3>
+        <div id="homeRecentSales" class="recent-list"></div>
+      </div>
+      <div class="recent-block">
+        <h3 class="recent-title">Recent Purchases</h3>
+        <div id="homeRecentPurchases" class="recent-list"></div>
+      </div>
+    </div>
   </section>
 
   <!-- SALES -->
   <section id="revenue" class="page hidden">
     <h2 class="page-title">Sales</h2>
+
     <div id="salesListView">
       <div class="list-header">
         <button type="button" id="addNewSaleBtn" class="btn-primary">+ Add New</button>
@@ -50,11 +66,21 @@
           <label>To <input type="date" id="salesToDate"></label>
           <button type="button" id="filterSalesBtn" class="btn-filter">Filter</button>
         </div>
-        <div class="list-search"><input type="text" id="salesSearch" placeholder="Search customer…"></div>
+        <div class="list-search">
+          <input type="text" id="salesSearch" placeholder="Search customer…">
+          <button type="button" id="clearSalesSearch" class="btn-clear-search" title="Clear">×</button>
+        </div>
       </div>
       <div class="table-wrapper">
         <table class="txn-table">
-          <thead><tr><th>Date</th><th>Customer</th><th>Reference</th><th>Gross Amount</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Customer</th>
+              <th>Reference</th>
+              <th class="num">Gross Amount</th>
+            </tr>
+          </thead>
           <tbody id="salesListTableBody"></tbody>
         </table>
       </div>
@@ -63,34 +89,55 @@
     <div id="salesFormView" class="hidden">
       <span id="salesStatus" class="txn-status draft">DRAFT</span>
       <div class="form-header">
-        <div><label>Customer Name</label><input type="text" id="salesCustomer"></div>
-        <div><label>Reference No.</label><input type="text" id="salesReference"></div>
-        <div class="total-box"><span>Total</span><strong id="salesTotal">0.00</strong></div>
+        <div>
+          <label>Customer Name</label>
+          <input type="text" id="salesCustomer" autocomplete="off">
+        </div>
+        <div>
+          <label>Reference No.</label>
+          <input type="text" id="salesReference" autocomplete="off">
+        </div>
+        <div class="total-box">
+          <span>Total</span>
+          <strong id="salesTotal">0.00</strong>
+        </div>
       </div>
       <div class="table-wrapper">
         <table class="txn-table">
-          <thead><tr><th>Date</th><th>Description</th><th>Account</th><th>Net</th><th>Output VAT</th><th>Tax Type</th><th style="width:40px;"></th></tr></thead>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Description</th>
+              <th>Account</th>
+              <th class="num">Net</th>
+              <th class="num">Output VAT</th>
+              <th>Tax Type</th>
+              <th style="width:40px;"></th>
+            </tr>
+          </thead>
           <tbody id="salesTableBody"></tbody>
         </table>
       </div>
-      <div class="row-actions"><button type="button" id="addSalesRowBtn">+</button></div>
+      <div class="row-actions">
+        <button type="button" id="addSalesRowBtn">+ Add Row</button>
+      </div>
       <div class="form-footer">
         <div class="audit-log">
-          <p id="salesLastEdited">Last edited: --/--/---- --:--</p>
+          <p id="salesLastEdited">Last edited: —</p>
           <p>Status: <span id="salesRecordStatus">New Draft</span></p>
         </div>
         <div class="summary-breakdown">
           <div class="summary-row"><span>Total Net:</span><span id="salesSummaryNet">0.00</span></div>
           <div class="summary-row"><span>Total VAT:</span><span id="salesSummaryVat">0.00</span></div>
-          <div class="summary-row"><span>VAT Exempt/None:</span><span id="salesSummaryExempt">0.00</span></div>
+          <div class="summary-row"><span>VAT Exempt / None:</span><span id="salesSummaryExempt">0.00</span></div>
           <div class="summary-row grand-total"><span>Grand Total:</span><strong id="salesSummaryGrand">0.00</strong></div>
         </div>
       </div>
       <div class="button-row">
         <button type="button" id="saveSaleBtn">Save</button>
-        <button type="button" id="editSaleBtn" class="hidden">Edit</button>
-        <button type="button" id="postSaleBtn">Post</button>
-        <button type="button" id="voidSaleBtn" class="hidden">Void</button>
+        <button type="button" id="editSaleBtn"  class="hidden">Edit</button>
+        <button type="button" id="postSaleBtn"  class="hidden">Post</button>
+        <button type="button" id="voidSaleBtn"  class="hidden">Void</button>
         <button type="button" id="cancelSaleBtn">Cancel</button>
       </div>
     </div>
@@ -99,6 +146,7 @@
   <!-- PURCHASES -->
   <section id="bills" class="page hidden">
     <h2 class="page-title">Purchases</h2>
+
     <div id="purchaseListView">
       <div class="list-header">
         <button type="button" id="addNewPurchaseBtn" class="btn-primary">+ Add New</button>
@@ -107,11 +155,21 @@
           <label>To <input type="date" id="purchaseToDate"></label>
           <button type="button" id="filterPurchasesBtn" class="btn-filter">Filter</button>
         </div>
-        <div class="list-search"><input type="text" id="purchaseSearch" placeholder="Search supplier…"></div>
+        <div class="list-search">
+          <input type="text" id="purchaseSearch" placeholder="Search supplier…">
+          <button type="button" id="clearPurchaseSearch" class="btn-clear-search" title="Clear">×</button>
+        </div>
       </div>
       <div class="table-wrapper">
         <table class="txn-table">
-          <thead><tr><th>Date</th><th>Supplier</th><th>Reference</th><th>Gross Amount</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Supplier</th>
+              <th>Reference</th>
+              <th class="num">Gross Amount</th>
+            </tr>
+          </thead>
           <tbody id="purchaseListTableBody"></tbody>
         </table>
       </div>
@@ -120,34 +178,55 @@
     <div id="purchaseFormView" class="hidden">
       <span id="purchaseStatus" class="txn-status draft">DRAFT</span>
       <div class="form-header">
-        <div><label>Supplier Name</label><input type="text" id="purchaseSupplier"></div>
-        <div><label>Reference No.</label><input type="text" id="purchaseReference"></div>
-        <div class="total-box"><span>Total</span><strong id="purchaseTotal">0.00</strong></div>
+        <div>
+          <label>Supplier Name</label>
+          <input type="text" id="purchaseSupplier" autocomplete="off">
+        </div>
+        <div>
+          <label>Reference No.</label>
+          <input type="text" id="purchaseReference" autocomplete="off">
+        </div>
+        <div class="total-box">
+          <span>Total</span>
+          <strong id="purchaseTotal">0.00</strong>
+        </div>
       </div>
       <div class="table-wrapper">
         <table class="txn-table">
-          <thead><tr><th>Date</th><th>Description</th><th>Account</th><th>Net</th><th>Input VAT</th><th>Tax Type</th><th style="width:40px;"></th></tr></thead>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Description</th>
+              <th>Account</th>
+              <th class="num">Net</th>
+              <th class="num">Input VAT</th>
+              <th>Tax Type</th>
+              <th style="width:40px;"></th>
+            </tr>
+          </thead>
           <tbody id="purchaseTableBody"></tbody>
         </table>
       </div>
-      <div class="row-actions"><button type="button" id="addPurchaseRowBtn">+</button></div>
+      <div class="row-actions">
+        <button type="button" id="addPurchaseRowBtn">+ Add Row</button>
+      </div>
       <div class="form-footer">
         <div class="audit-log">
-          <p id="purchaseLastEdited">Last edited: --/--/---- --:--</p>
+          <p id="purchaseLastEdited">Last edited: —</p>
           <p>Status: <span id="purchaseRecordStatus">New Draft</span></p>
         </div>
         <div class="summary-breakdown">
           <div class="summary-row"><span>Total Net:</span><span id="purchaseSummaryNet">0.00</span></div>
           <div class="summary-row"><span>Total VAT:</span><span id="purchaseSummaryVat">0.00</span></div>
-          <div class="summary-row"><span>VAT Exempt/None:</span><span id="purchaseSummaryExempt">0.00</span></div>
+          <div class="summary-row"><span>VAT Exempt / None:</span><span id="purchaseSummaryExempt">0.00</span></div>
           <div class="summary-row grand-total"><span>Grand Total:</span><strong id="purchaseSummaryGrand">0.00</strong></div>
         </div>
       </div>
       <div class="button-row">
         <button type="button" id="savePurchaseBtn">Save</button>
-        <button type="button" id="editPurchaseBtn" class="hidden">Edit</button>
-        <button type="button" id="postPurchaseBtn">Post</button>
-        <button type="button" id="voidPurchaseBtn" class="hidden">Void</button>
+        <button type="button" id="editPurchaseBtn"  class="hidden">Edit</button>
+        <button type="button" id="postPurchaseBtn"  class="hidden">Post</button>
+        <button type="button" id="voidPurchaseBtn"  class="hidden">Void</button>
         <button type="button" id="cancelPurchaseBtn">Cancel</button>
       </div>
     </div>
@@ -168,7 +247,7 @@
       <div>
         <label>Report Type</label>
         <select id="reportType">
-          <option value="both">Sales & Purchases</option>
+          <option value="both">Sales &amp; Purchases</option>
           <option value="sales">Sales Only</option>
           <option value="purchases">Purchases Only</option>
         </select>
@@ -209,12 +288,13 @@
 
 </main>
 
-<script src="config.js" defer></script>
-<script src="utils.js" defer></script>
-<script src="sales.js" defer></script>
+<script src="config.js"    defer></script>
+<script src="db.js"        defer></script>
+<script src="utils.js"     defer></script>
+<script src="sales.js"     defer></script>
 <script src="purchases.js" defer></script>
-<script src="reports.js" defer></script>
-<script src="coa.js" defer></script>
-<script src="main.js" defer></script>
+<script src="reports.js"   defer></script>
+<script src="coa.js"       defer></script>
+<script src="main.js"      defer></script>
 </body>
 </html>

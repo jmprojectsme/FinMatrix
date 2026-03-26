@@ -1,14 +1,17 @@
 // =====================================================
-// GLOBAL STATE
+// config.js — Global State & COA Defaults
 // =====================================================
-window.savedSales = [];
-window.savedPurchases = [];
-window.currentSaleIndex = null;
+// savedSales / savedPurchases are populated from
+// IndexedDB on load (see db.js + main.js).
+// COA below is the default — overwritten by DB if the
+// user has previously saved changes.
+// =====================================================
+
+window.savedSales           = [];
+window.savedPurchases       = [];
+window.currentSaleIndex     = null;
 window.currentPurchaseIndex = null;
 
-// =====================================================
-// CHART OF ACCOUNTS
-// =====================================================
 window.COA = {
   sales: {
     Income: ["Sales", "Service Income", "Professional Fees", "Other Income"]

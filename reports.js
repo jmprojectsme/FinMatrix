@@ -1,9 +1,9 @@
 // =====================================================
-// REPORTS MODULE
+// reports.js — Account Totals Report
 // =====================================================
 
-// Build a { accountName: { net, vat, gross } } map
-// from a transaction list, filtered by date range.
+// Build { accountName: { net, vat, gross } } map
+// from a transaction list filtered by date range.
 // Skips VOID transactions.
 function buildAccountTotals(list, fromDate, toDate) {
   const map = {};
@@ -29,7 +29,7 @@ function buildAccountTotals(list, fromDate, toDate) {
   return map;
 }
 
-// Render one report section table
+// Render one report section as an HTML string
 function renderReportTable(title, map) {
   const entries = Object.entries(map);
 
@@ -82,26 +82,26 @@ function renderReportTable(title, map) {
 }
 
 // Run Report button
-document.getElementById("runReportBtn").onclick = function() {
+document.getElementById("runReportBtn").onclick = function () {
   const from = document.getElementById("reportFromDate").value;
   const to   = document.getElementById("reportToDate").value;
   const type = document.getElementById("reportType").value;
   const out  = document.getElementById("reportOutput");
 
-  const dateLabel = (from || to)
-    ? `<p class="report-period">Period: ${from || "all"} → ${to || "all"}</p>`
-    : `<p class="report-period">Period: All dates</p>`;
+  const periodLabel = (from || to)
+    ? `${window.formatDate(from) || "All"} → ${window.formatDate(to) || "All"}`
+    : "All dates";
 
-  let html = dateLabel;
+  let html = `<p class="report-period">Period: ${periodLabel}</p>`;
 
   if (type === "both" || type === "sales") {
-    const salesMap = buildAccountTotals(window.savedSales, from, to);
-    html += renderReportTable("Sales by Account", salesMap);
+    html += renderReportTable("Sales by Account",
+              buildAccountTotals(window.savedSales, from, to));
   }
 
   if (type === "both" || type === "purchases") {
-    const purchMap = buildAccountTotals(window.savedPurchases, from, to);
-    html += renderReportTable("Purchases by Account", purchMap);
+    html += renderReportTable("Purchases by Account",
+              buildAccountTotals(window.savedPurchases, from, to));
   }
 
   out.innerHTML = html;

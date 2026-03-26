@@ -1,61 +1,77 @@
 // =====================================================
-// ACCOUNT DROPDOWN BUILDER
-// Reads from window.COA set in config.js
+// utils.js — Shared Helpers
 // =====================================================
-window.createAccountDropdown = function(type, selected = "") {
+
+// -------------------------------------------------------
+// DATE FORMATTER
+// Converts "2025-03-01" → "Mar 1, 2025"
+// -------------------------------------------------------
+window.formatDate = function (dateStr) {
+  if (!dateStr) return "—";
+  // Parse as local date to avoid timezone-shift issues
+  const [y, m, d] = dateStr.split("-").map(Number);
+  if (!y || !m || !d) return dateStr;
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    year: "numeric", month: "short", day: "numeric"
+  });
+};
+
+// -------------------------------------------------------
+// ACCOUNT DROPDOWN BUILDER
+// Reads from window.COA (config.js / db.js)
+// -------------------------------------------------------
+window.createAccountDropdown = function (type, selected = "") {
   const select = document.createElement("select");
   select.className = "account-select";
-  select.innerHTML = `<option value="">-- Select Account --</option>`;
+  select.innerHTML = `<option value="">— Select Account —</option>`;
 
-  if (window.COA && window.COA[type]) {
+  if (window.COA?.[type]) {
     Object.keys(window.COA[type]).forEach(group => {
-      const optgroup = document.createElement("optgroup");
-      optgroup.label = group;
+      const og = document.createElement("optgroup");
+      og.label = group;
       window.COA[type][group].forEach(acc => {
         const opt = document.createElement("option");
         opt.value = acc;
         opt.textContent = acc;
         if (acc === selected) opt.selected = true;
-        optgroup.appendChild(opt);
+        og.appendChild(opt);
       });
-      select.appendChild(optgroup);
+      select.appendChild(og);
     });
   }
 
   return select;
 };
 
-// =====================================================
+// -------------------------------------------------------
 // AUDIT LOG UPDATER
-// =====================================================
-window.updateAuditLog = function(type) {
+// -------------------------------------------------------
+window.updateAuditLog = function (type) {
   const now = new Date();
-  const timeString = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const timeStr = now.toLocaleDateString() + " " +
+                  now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-  const timeId   = type === 'sales' ? 'salesLastEdited'    : 'purchaseLastEdited';
-  const statusId = type === 'sales' ? 'salesRecordStatus'  : 'purchaseRecordStatus';
+  const timeEl   = document.getElementById(type === "sales" ? "salesLastEdited"   : "purchaseLastEdited");
+  const statusEl = document.getElementById(type === "sales" ? "salesRecordStatus" : "purchaseRecordStatus");
 
-  const timeEl   = document.getElementById(timeId);
-  const statusEl = document.getElementById(statusId);
+  if (!timeEl || !statusEl) return;
 
-  if (timeEl && statusEl) {
-    const list  = type === 'sales' ? window.savedSales : window.savedPurchases;
-    const index = type === 'sales' ? window.currentSaleIndex : window.currentPurchaseIndex;
+  timeEl.innerText = `Last edited: ${timeStr}`;
 
-    timeEl.innerText = `Last edited: ${timeString}`;
+  const list  = type === "sales" ? window.savedSales : window.savedPurchases;
+  const index = type === "sales" ? window.currentSaleIndex : window.currentPurchaseIndex;
 
-    let statusText = "New Draft";
-    if (index !== null && list[index] && list[index].lastEditedStatus) {
-      statusText = list[index].lastEditedStatus;
-    }
-    statusEl.innerText = statusText;
+  let statusText = "New Draft";
+  if (index !== null && list[index]?.lastEditedStatus) {
+    statusText = list[index].lastEditedStatus;
   }
+  statusEl.innerText = statusText;
 };
 
-// =====================================================
-// INLINE VALIDATION HELPERS
-// =====================================================
-window.showInlineError = function(input, message, isWarning = false) {
+// -------------------------------------------------------
+// INLINE VALIDATION
+// -------------------------------------------------------
+window.showInlineError = function (input, message, isWarning = false) {
   window.clearInlineError(input);
   input.classList.add(isWarning ? "input-warning" : "input-error");
   const msg = document.createElement("div");
@@ -64,29 +80,28 @@ window.showInlineError = function(input, message, isWarning = false) {
   input.parentNode.appendChild(msg);
 };
 
-window.clearInlineError = function(input) {
+window.clearInlineError = function (input) {
   input.classList.remove("input-error", "input-warning");
-  const err = input.parentNode.querySelector(".validation-error, .validation-warning");
-  if (err) err.remove();
+  input.parentNode.querySelector(".validation-error, .validation-warning")?.remove();
 };
 
-// =====================================================
+// -------------------------------------------------------
 // DUPLICATE REFERENCE CHECK
-// =====================================================
-window.isDuplicateReference = function(list, ref, currentIndex) {
+// -------------------------------------------------------
+window.isDuplicateReference = function (list, ref, currentIndex) {
   if (!ref) return false;
+  const lower = ref.toLowerCase();
   return list.some((item, i) =>
     i !== currentIndex &&
-    item.reference &&
-    item.reference.toLowerCase() === ref.toLowerCase()
+    item.reference?.toLowerCase() === lower
   );
 };
 
-// =====================================================
-// STATUS BADGE HELPER
-// =====================================================
-window.statusBadge = function(status) {
-  if (status === "VOID")   return `<span style="font-size:10px;color:#b91c1c;font-weight:700;">[VOID]</span> `;
-  if (status === "POSTED") return `<span style="font-size:10px;color:#15803d;font-weight:700;">[POSTED]</span> `;
+// -------------------------------------------------------
+// STATUS BADGE (inline in list rows)
+// -------------------------------------------------------
+window.statusBadge = function (status) {
+  if (status === "VOID")   return `<span style="font-size:10px;color:#b91c1c;font-weight:700;margin-right:3px;">[VOID]</span>`;
+  if (status === "POSTED") return `<span style="font-size:10px;color:#15803d;font-weight:700;margin-right:3px;">[POSTED]</span>`;
   return "";
 };
