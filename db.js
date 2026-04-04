@@ -1,114 +1,93 @@
 // =====================================================
-// db.js — IndexedDB Persistence Layer
+// db.js — IndexedDB Persistence
 // =====================================================
-// Stores: sales, purchases, settings (COA)
-// =====================================================
-
 const DB_NAME    = "FinMatrixDB";
-const DB_VERSION = 2; // bumped for journal entries store
-
+const DB_VERSION = 2;
 let _db = null;
 
 function openDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
-
-    req.onupgradeneeded = (e) => {
+    req.onupgradeneeded = e => {
       const db = e.target.result;
-      if (!db.objectStoreNames.contains("sales"))
-        db.createObjectStore("sales",     { keyPath: "id", autoIncrement: true });
-      if (!db.objectStoreNames.contains("purchases"))
-        db.createObjectStore("purchases", { keyPath: "id", autoIncrement: true });
-      if (!db.objectStoreNames.contains("settings"))
-        db.createObjectStore("settings",  { keyPath: "key" });
+      if (!db.objectStoreNames.contains("sales"))     db.createObjectStore("sales",     { keyPath:"id", autoIncrement:true });
+      if (!db.objectStoreNames.contains("purchases")) db.createObjectStore("purchases", { keyPath:"id", autoIncrement:true });
+      if (!db.objectStoreNames.contains("settings"))  db.createObjectStore("settings",  { keyPath:"key" });
     };
-
-    req.onsuccess = (e) => { _db = e.target.result; resolve(_db); };
-    req.onerror   = (e) => reject(e.target.error);
+    req.onsuccess = e => { _db = e.target.result; resolve(); };
+    req.onerror   = e => reject(e.target.error);
   });
 }
 
-function getAll(storeName) {
+function getAll(store) {
   return new Promise((resolve, reject) => {
-    const req = _db.transaction(storeName, "readonly")
-                   .objectStore(storeName).getAll();
+    const req = _db.transaction(store,"readonly").objectStore(store).getAll();
     req.onsuccess = () => resolve(req.result);
-    req.onerror   = (e) => reject(e.target.error);
+    req.onerror   = e => reject(e.target.error);
   });
 }
 
-function putRecord(storeName, record) {
+function putRecord(store, record) {
   return new Promise((resolve, reject) => {
-    const req = _db.transaction(storeName, "readwrite")
-                   .objectStore(storeName).put(record);
+    const req = _db.transaction(store,"readwrite").objectStore(store).put(record);
     req.onsuccess = () => resolve(req.result);
-    req.onerror   = (e) => reject(e.target.error);
+    req.onerror   = e => reject(e.target.error);
+  });
+}
+
+function getSetting(key) {
+  return new Promise(resolve => {
+    const req = _db.transaction("settings","readonly").objectStore("settings").get(key);
+    req.onsuccess = () => resolve(req.result?.value || null);
+    req.onerror   = () => resolve(null);
   });
 }
 
 window.DB = {
-
   init: async function () {
     await openDB();
-    await this.loadAll();
-  },
-
-  loadAll: async function () {
     const sales = await getAll("sales");
-    sales.sort((a, b) => a.id - b.id);
+    sales.sort((a,b) => a.id - b.id);
     window.savedSales = sales;
-
     const purchases = await getAll("purchases");
-    purchases.sort((a, b) => a.id - b.id);
+    purchases.sort((a,b) => a.id - b.id);
     window.savedPurchases = purchases;
-
-    await new Promise((resolve) => {
-      const req = _db.transaction("settings", "readonly")
-                     .objectStore("settings").get("coa");
-      req.onsuccess = () => {
-        if (req.result?.value) window.COA = req.result.value;
-        resolve();
-      };
-      req.onerror = () => resolve();
-    });
+    const coa = await getSetting("coa");
+    if (coa) window.COA = coa;
+    const profile = await getSetting("companyProfile");
+    if (profile) window.companyProfile = profile;
   },
 
-  // SALES
   saveSale: async function (sale, index) {
-    const record = { ...sale };
-    if (index !== null && window.savedSales[index]?.id)
-      record.id = window.savedSales[index].id;
-    const id = await putRecord("sales", record);
-    record.id = id;
-    if (index !== null) window.savedSales[index] = record;
-    else                window.savedSales.push(record);
+    const rec = { ...sale };
+    if (index !== null && window.savedSales[index]?.id) rec.id = window.savedSales[index].id;
+    const id = await putRecord("sales", rec);
+    rec.id = id;
+    if (index !== null) window.savedSales[index] = rec;
+    else                window.savedSales.push(rec);
     return id;
   },
-
   updateSale: async function (index) {
-    const sale = window.savedSales[index];
-    if (sale?.id) await putRecord("sales", sale);
+    if (window.savedSales[index]?.id) await putRecord("sales", window.savedSales[index]);
   },
 
-  // PURCHASES
   savePurchase: async function (purchase, index) {
-    const record = { ...purchase };
-    if (index !== null && window.savedPurchases[index]?.id)
-      record.id = window.savedPurchases[index].id;
-    const id = await putRecord("purchases", record);
-    record.id = id;
-    if (index !== null) window.savedPurchases[index] = record;
-    else                window.savedPurchases.push(record);
+    const rec = { ...purchase };
+    if (index !== null && window.savedPurchases[index]?.id) rec.id = window.savedPurchases[index].id;
+    const id = await putRecord("purchases", rec);
+    rec.id = id;
+    if (index !== null) window.savedPurchases[index] = rec;
+    else                window.savedPurchases.push(rec);
     return id;
   },
-
   updatePurchase: async function (index) {
-    const purchase = window.savedPurchases[index];
-    if (purchase?.id) await putRecord("purchases", purchase);
+    if (window.savedPurchases[index]?.id) await putRecord("purchases", window.savedPurchases[index]);
   },
 
-  // COA
   saveCOA: async function () {
-    await putRecord("settings", { key: "coa", value: window.COA });
+    await putRecord("settings", { key:"coa", value:window.COA });
   },
+  saveCompanyProfile: async function () {
+    await putRecord("settings", { key:"companyProfile", value:window.companyProfile });
+  }
 };

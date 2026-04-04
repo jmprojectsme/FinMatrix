@@ -2,215 +2,193 @@
 // utils.js — Shared Helpers
 // =====================================================
 
-// -------------------------------------------------------
-// DATE HELPERS
-// -------------------------------------------------------
-window.formatDate = function (dateStr) {
-  if (!dateStr) return "—";
-  const [y, m, d] = dateStr.split("-").map(Number);
-  if (!y || !m || !d) return dateStr;
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
-    year: "numeric", month: "short", day: "numeric"
-  });
-};
-
 window.nowTimestamp = function () {
-  const now = new Date();
-  return now.toLocaleDateString() + " " +
-         now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const n = new Date();
+  return n.toLocaleDateString() + " " + n.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
 };
 
-// -------------------------------------------------------
-// ACCOUNT DROPDOWN
-// Accepts a category key: "sales" | "purchases" | "assets" | "liabilities" | "equity"
-// Or pass "all" to include all categories (used in journal / COA pickers)
-// -------------------------------------------------------
-window.createAccountDropdown = function (type, selected = "") {
-  const select = document.createElement("select");
-  select.className = "account-select";
-  select.innerHTML = `<option value="">— Select Account —</option>`;
+window.formatDate = function (s) {
+  if (!s) return "—";
+  const [y,m,d] = s.split("-").map(Number);
+  if (!y||!m||!d) return s;
+  return new Date(y, m-1, d).toLocaleDateString(undefined, { year:"numeric", month:"short", day:"numeric" });
+};
 
-  const categories = type === "all"
-    ? Object.keys(window.COA)
-    : [type];
+window.calcGross = function (rows) {
+  return (rows||[]).reduce((s,r) => {
+    const net = parseFloat(r.net) || 0;
+    return s + net + (r.tax === "VAT" ? net * 0.12 : 0);
+  }, 0);
+};
 
-  categories.forEach(cat => {
-    if (!window.COA[cat]) return;
-    Object.keys(window.COA[cat]).forEach(group => {
+window.calcNet = function (rows) {
+  return (rows||[]).reduce((s,r) => s + (parseFloat(r.net) || 0), 0);
+};
+
+// Account dropdown — shows all COA categories, natural category first
+// If selected account no longer exists in COA (renamed/deleted), still shows it
+window.createAccountDropdown = function (type, selected) {
+  const sel = document.createElement("select");
+  sel.className = "account-select";
+  sel.innerHTML = `<option value="">— Account —</option>`;
+
+  const catLabels = {
+    sales:"Revenue", purchases:"Expenses",
+    assets:"Assets", liabilities:"Liabilities", equity:"Equity"
+  };
+  const naturalFirst = type === "sales" ? "sales" : "purchases";
+  const ordered = [naturalFirst, ...Object.keys(window.COA).filter(c => c !== naturalFirst)];
+
+  let foundSelected = false;
+
+  ordered.forEach(cat => {
+    const groups = window.COA[cat] || {};
+    Object.keys(groups).forEach(g => {
       const og = document.createElement("optgroup");
-      og.label = (type === "all") ? `[${cat.toUpperCase()}] ${group}` : group;
-      window.COA[cat][group].forEach(acc => {
-        const opt = document.createElement("option");
-        opt.value = acc;
-        opt.textContent = acc;
-        if (acc === selected) opt.selected = true;
-        og.appendChild(opt);
+      og.label = `[${catLabels[cat]||cat}] ${g}`;
+      groups[g].forEach(acc => {
+        const o = document.createElement("option");
+        o.value = acc; o.textContent = acc;
+        if (acc === selected) { o.selected = true; foundSelected = true; }
+        og.appendChild(o);
       });
-      select.appendChild(og);
+      sel.appendChild(og);
     });
   });
 
-  return select;
+  // If selected account was renamed/deleted, add it as a preserved option
+  if (selected && !foundSelected) {
+    const og = document.createElement("optgroup");
+    og.label = "⚠ Preserved (renamed/removed from COA)";
+    const o = document.createElement("option");
+    o.value = selected; o.textContent = selected; o.selected = true;
+    og.appendChild(o);
+    sel.insertBefore(og, sel.children[1]); // insert after blank option
+  }
+
+  return sel;
 };
 
-// -------------------------------------------------------
-// AUDIT LOG — loads STORED timestamps from record
-// Never overwrites existing timestamps
-// -------------------------------------------------------
-window.loadAuditLog = function (type) {
-  const list  = type === "sales" ? window.savedSales : window.savedPurchases;
-  const index = type === "sales" ? window.currentSaleIndex : window.currentPurchaseIndex;
-
-  const editEl   = document.getElementById(type === "sales" ? "salesLastEdited"  : "purchaseLastEdited");
-  const postEl   = document.getElementById(type === "sales" ? "salesPostedAt"    : "purchasePostedAt");
-  const voidEl   = document.getElementById(type === "sales" ? "salesVoidedAt"    : "purchaseVoidedAt");
-  const statusEl = document.getElementById(type === "sales" ? "salesRecordStatus": "purchaseRecordStatus");
-
-  if (!editEl) return;
-
-  // New unsaved record
-  if (index === null || !list[index]) {
-    editEl.textContent = "Created: —";
-    postEl?.classList.add("hidden");
-    voidEl?.classList.add("hidden");
-    if (statusEl) statusEl.textContent = "New Draft";
-    return;
-  }
-
-  const rec = list[index];
-  editEl.textContent = `Last saved: ${rec.createdAt || "—"}`;
-
-  if (rec.postedAt) {
-    postEl.textContent = `Posted: ${rec.postedAt}`;
-    postEl.classList.remove("hidden");
-  } else {
-    postEl?.classList.add("hidden");
-  }
-
-  if (rec.voidedAt) {
-    voidEl.textContent = `Voided: ${rec.voidedAt}`;
-    voidEl.classList.remove("hidden");
-  } else {
-    voidEl?.classList.add("hidden");
-  }
-
-  if (statusEl) statusEl.textContent = rec.lastEditedStatus || "Draft";
-};
-
-// -------------------------------------------------------
-// INLINE VALIDATION
-// -------------------------------------------------------
-window.showInlineError = function (input, message, isWarning = false) {
+window.showInlineError = function (input, msg, isWarn) {
   window.clearInlineError(input);
-  input.classList.add(isWarning ? "input-warning" : "input-error");
-  const msg = document.createElement("div");
-  msg.className = isWarning ? "validation-warning" : "validation-error";
-  msg.textContent = message;
-  input.parentNode.appendChild(msg);
+  input.classList.add(isWarn ? "input-warning" : "input-error");
+  const d = document.createElement("div");
+  d.className = isWarn ? "validation-warning" : "validation-error";
+  d.textContent = msg;
+  input.parentNode.appendChild(d);
 };
 
 window.clearInlineError = function (input) {
-  input.classList.remove("input-error", "input-warning");
-  input.parentNode.querySelector(".validation-error, .validation-warning")?.remove();
+  if (!input) return;
+  input.classList.remove("input-error","input-warning");
+  input.parentNode.querySelector(".validation-error,.validation-warning")?.remove();
 };
 
-window.isDuplicateReference = function (list, ref, currentIndex) {
+window.isDuplicateRef = function (list, ref, currentIndex) {
   if (!ref) return false;
-  const lower = ref.toLowerCase();
-  return list.some((item, i) =>
-    i !== currentIndex && item.reference?.toLowerCase() === lower
-  );
+  const lo = ref.toLowerCase();
+  return list.some((x,i) => i !== currentIndex && x.reference?.toLowerCase() === lo);
 };
 
-// -------------------------------------------------------
-// STATUS BADGE (inline list rows)
-// -------------------------------------------------------
-window.statusBadge = function (status) {
-  if (status === "VOID")
-    return `<span class="list-badge void">VOID</span>`;
-  if (status === "POSTED")
-    return `<span class="list-badge posted">POSTED</span>`;
-  return `<span class="list-badge draft">DRAFT</span>`;
+window.statusBadge = function (s) {
+  if (s === "VOID")   return `<span class="badge void">VOID</span>`;
+  if (s === "POSTED") return `<span class="badge posted">POSTED</span>`;
+  return `<span class="badge draft">DRAFT</span>`;
 };
 
-// -------------------------------------------------------
-// DOUBLE-ENTRY JOURNAL GENERATOR
-// Returns array of { account, debit, credit } lines
-//
-// Sales (posted):
-//   DR  Accounts Receivable   (gross per row)
-//   CR  [selected revenue account]  (net per row)
-//   CR  Output VAT Payable    (vat per row, if VAT)
-//
-// Purchases (posted):
-//   DR  [selected expense account]  (net per row)
-//   DR  Input VAT             (vat per row, if VAT)
-//   CR  Accounts Payable      (gross per row)
-// -------------------------------------------------------
-window.generateJournalEntries = function (txn, type) {
-  const entries = [];
+window.loadAuditLog = function (type) {
+  const isSale  = type === "sales";
+  const list    = isSale ? window.savedSales    : window.savedPurchases;
+  const index   = isSale ? window.currentSaleIndex : window.currentPurchaseIndex;
+  const prefix  = isSale ? "sales" : "purchase";
+  const cEl     = document.getElementById(prefix + "CreatedAt");
+  const pEl     = document.getElementById(prefix + "PostedAt");
+  const vEl     = document.getElementById(prefix + "VoidedAt");
+  const sEl     = document.getElementById(prefix + "RecordStatus");
+  if (!cEl) return;
+  if (index === null || !list[index]) {
+    cEl.textContent = "Created: —";
+    pEl?.classList.add("hidden"); vEl?.classList.add("hidden");
+    if (sEl) sEl.textContent = "New Draft";
+    return;
+  }
+  const rec = list[index];
+  cEl.textContent = "Created: " + (rec.createdAt || "—");
+  if (rec.postedAt) { pEl.textContent = "Posted: " + rec.postedAt; pEl.classList.remove("hidden"); }
+  else pEl?.classList.add("hidden");
+  if (rec.voidedAt) { vEl.textContent = "Voided: " + rec.voidedAt; vEl.classList.remove("hidden"); }
+  else vEl?.classList.add("hidden");
+  if (sEl) sEl.textContent = rec.lastEditedStatus || "Draft";
+};
 
-  txn.rows.forEach(r => {
-    const net   = parseFloat(r.net)  || 0;
-    const vat   = r.tax === "VAT" ? net * 0.12 : 0;
-    const gross = net + vat;
+// Double-entry journal entries
+// paymentInfo = { type, date, bankName, checkNo, accountName, refNo, walletName, amount }
+window.generateJournalEntries = function (txn, type, paymentInfo) {
+  const pm   = paymentInfo?.type || txn.paymentMethod || txn.payment?.type || "Credit";
+  const map  = {};
+  const add  = (acc, dr, cr) => {
+    if (!map[acc]) map[acc] = { debit:0, credit:0 };
+    map[acc].debit += dr; map[acc].credit += cr;
+  };
+
+  // Determine settlement account from payment type
+  // Maps to actual COA account names used in Balance Sheet
+  function settlementAccount(side) {
+    switch(pm) {
+      case "Cash":    return "Cash on Hand";
+      case "Check":   return "Cash in Bank";     // Check clears through bank
+      case "GCash":   return "Cash on Hand";     // GCash is treated as cash equivalent
+      case "Maya":    return "Cash on Hand";     // Maya is treated as cash equivalent
+      case "EWallet": return "Cash on Hand";     // E-wallets are cash equivalents
+      case "Bank":    return "Cash in Bank";
+      case "Credit":
+      default:
+        return side === "debit" ? "Accounts Receivable" : "Accounts Payable";
+    }
+  }
+
+  (txn.rows || []).forEach(r => {
+    const net   = parseFloat(r.net) || 0;
+    const vat   = r.tax === "VAT" ? +(net * 0.12).toFixed(2) : 0;
+    const gross = +(net + vat).toFixed(2);
     const acct  = r.account || (type === "sales" ? "Sales Revenue" : "Miscellaneous Expense");
 
     if (type === "sales") {
-      entries.push({ account: "Accounts Receivable", debit: gross, credit: 0 });
-      entries.push({ account: acct,                  debit: 0,     credit: net });
-      if (vat > 0)
-        entries.push({ account: "Output VAT Payable", debit: 0,   credit: vat });
+      // DR  settlement account  (gross — full amount received/receivable)
+      // CR  revenue account     (net)
+      // CR  Output VAT Payable  (vat)
+      add(settlementAccount("debit"), gross, 0);
+      add(acct,                       0,     net);
+      if (vat > 0) add("Output VAT Payable", 0, vat);
     } else {
-      entries.push({ account: acct,                  debit: net,   credit: 0 });
-      if (vat > 0)
-        entries.push({ account: "Input VAT",          debit: vat,  credit: 0 });
-      entries.push({ account: "Accounts Payable",    debit: 0,     credit: gross });
+      // DR  expense account     (net)
+      // DR  Input VAT           (vat)
+      // CR  settlement account  (gross — full amount paid/payable)
+      add(acct,                        net,   0);
+      if (vat > 0) add("Input VAT",    vat,   0);
+      add(settlementAccount("credit"), 0,     gross);
     }
   });
 
-  // Consolidate duplicate accounts
-  const map = {};
-  entries.forEach(e => {
-    if (!map[e.account]) map[e.account] = { debit: 0, credit: 0 };
-    map[e.account].debit  += e.debit;
-    map[e.account].credit += e.credit;
-  });
-
-  return Object.entries(map).map(([account, v]) => ({
+  return Object.entries(map).map(([account,v]) => ({
     account, debit: v.debit, credit: v.credit
   }));
 };
 
-// Render journal entries into a tbody element
-window.renderJournalEntries = function (entries, tbodyEl) {
-  tbodyEl.innerHTML = "";
-  let totalDr = 0, totalCr = 0;
-
+window.renderJournalEntries = function (entries, tbody) {
+  tbody.innerHTML = "";
+  let totDr = 0, totCr = 0;
   entries.forEach(e => {
-    totalDr += e.debit;
-    totalCr += e.credit;
+    totDr += e.debit; totCr += e.credit;
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td class="${e.debit > 0 ? "" : "indent"}">${e.account}</td>
-      <td class="num">${e.debit  > 0 ? e.debit.toFixed(2)  : ""}</td>
-      <td class="num">${e.credit > 0 ? e.credit.toFixed(2) : ""}</td>`;
-    tbodyEl.appendChild(tr);
+      <td class="${e.debit>0?"":"cr-indent"}">${e.account}</td>
+      <td class="num">${e.debit>0?e.debit.toFixed(2):""}</td>
+      <td class="num">${e.credit>0?e.credit.toFixed(2):""}</td>`;
+    tbody.appendChild(tr);
   });
-
-  // Totals row
   const tot = document.createElement("tr");
-  tot.className = "journal-totals";
-  tot.innerHTML = `
-    <td><strong>Total</strong></td>
-    <td class="num"><strong>${totalDr.toFixed(2)}</strong></td>
-    <td class="num"><strong>${totalCr.toFixed(2)}</strong></td>`;
-  tbodyEl.appendChild(tot);
-};
-
-// -------------------------------------------------------
-// GROSS CALCULATOR
-// -------------------------------------------------------
-window.calcGross = function (rows) {
-  return rows.reduce((s, r) => s + (parseFloat(r.net) || 0) + (r.tax === "VAT" ? (parseFloat(r.net) || 0) * 0.12 : 0), 0);
+  tot.className = "j-total";
+  tot.innerHTML = `<td><strong>Total</strong></td><td class="num"><strong>${totDr.toFixed(2)}</strong></td><td class="num"><strong>${totCr.toFixed(2)}</strong></td>`;
+  tbody.appendChild(tot);
 };
